@@ -18,8 +18,8 @@ defmodule Advent19.Utils.Input do
     |> path
     |> File.exists?()
     |> case do
-      true -> day |> path |> File.read!()
-      _ -> download(day)
+      true -> day |> path |> File.read!() |> String.trim()
+      _ -> download(day) |> String.trim()
     end
   end
 
