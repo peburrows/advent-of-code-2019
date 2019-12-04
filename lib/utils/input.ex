@@ -1,5 +1,4 @@
 defmodule Advent19.Utils.Input do
-  # this should really be pulled into an env var of some sort
   @input_dir "priv/inputs"
   def download(day) do
     {:ok, %{status_code: 200, body: body}} =
