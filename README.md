@@ -1,21 +1,15 @@
-# Advent19
+# Advent of Code 2019
 
-**TODO: Add description**
+## Day Setup
 
-## Installation
+To download the input and create test and source files for a particular day, make sure the `AOC_SESSION` env var has your session cookie value, and then run:
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `advent19` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:advent19, "~> 0.1.0"}
-  ]
-end
+```sh
+$ mix day.setup <day>
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/advent19](https://hexdocs.pm/advent19).
+For instance, to setup day 3, run:
 
+```sh
+$ mix day.setup 3
+```
