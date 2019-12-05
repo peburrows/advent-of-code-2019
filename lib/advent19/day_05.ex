@@ -8,6 +8,11 @@ defmodule Advent19.Day05 do
               output: []
   end
 
+  # just call part1
+  def part2(program, input \\ nil) do
+    part1(program, input)
+  end
+
   def part1(program, input \\ nil)
 
   def part1(program, input) when is_binary(program) do
@@ -77,6 +82,48 @@ defmodule Advent19.Day05 do
   defp calculate(4, {m1, _, _}, %{values: v, index: i, output: out} = state) do
     val = extract_ref(v, i + 1, m1)
     %{state | index: i + 2, output: [val | out]}
+  end
+
+  defp calculate(5, {m1, m2, _}, %{values: v, index: i} = state) do
+    # jump-if-true
+    i =
+      case extract_ref(v, i + 1, m1) do
+        0 -> i + 3
+        _ -> extract_ref(v, i + 2, m2)
+      end
+
+    %{state | index: i}
+  end
+
+  defp calculate(6, {m1, m2, _}, %{values: v, index: i} = state) do
+    # jump-if-false
+    i =
+      case extract_ref(v, i + 1, m1) do
+        0 -> extract_ref(v, i + 2, m2)
+        _ -> i + 3
+      end
+
+    %{state | index: i}
+  end
+
+  # Opcode 7 is less than: if the first parameter is less than the second parameter, it stores 1 in the position given by the third parameter. Otherwise, it stores 0.
+  defp calculate(7, {m1, m2, _m3}, %{values: v, index: i} = state) do
+    a = extract_ref(v, i + 1, m1)
+    b = extract_ref(v, i + 2, m2)
+    dest = extract_ref(v, i + 3, 1)
+    val = if a < b, do: 1, else: 0
+
+    %{state | values: Map.put(v, dest, val), index: i + 4}
+  end
+
+  # Opcode 8 is equals: if the first parameter is equal to the second parameter, it stores 1 in the position given by the third parameter. Otherwise, it stores 0.
+  defp calculate(8, {m1, m2, _m3}, %{values: v, index: i} = state) do
+    a = extract_ref(v, i + 1, m1)
+    b = extract_ref(v, i + 2, m2)
+    dest = extract_ref(v, i + 3, 1)
+    val = if a == b, do: 1, else: 0
+
+    %{state | values: Map.put(v, dest, val), index: i + 4}
   end
 
   defp calculate(_other, _mode, %{index: i} = state), do: %{state | complete: true, index: i + 1}
