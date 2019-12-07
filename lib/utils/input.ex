@@ -33,6 +33,7 @@ defmodule Advent19.Utils.Input do
     data
     |> String.trim()
     |> String.split(sep, trim: true)
+    |> Enum.map(&String.trim/1)
     |> Enum.map(&String.to_integer/1)
   end
 

@@ -3,11 +3,22 @@ defmodule Advent19.IntCode do
     defstruct code: [],
               values: %{},
               inputs: [],
+              input_func: nil,
               index: 0,
               complete: false,
-              output: []
+              output: [],
+              output_func: nil,
+              halted: false
 
-    def compile(code, inputs) do
+    def default_output_function(state, out) do
+      %{state | output: [out | state.output]}
+    end
+
+    def compile(%__MODULE__{} = compiled, inputs) do
+      %{compiled | inputs: inputs}
+    end
+
+    def compile(code, inputs, input_func \\ nil, output_func \\ &default_output_function/2) do
       values =
         code
         |> Enum.with_index()
@@ -18,30 +29,35 @@ defmodule Advent19.IntCode do
       %__MODULE__{
         values: values,
         code: code,
-        inputs: inputs
+        inputs: inputs,
+        output_func: output_func,
+        input_func: input_func
       }
     end
   end
 
-  # eventually extract these into the compiler
-  def run(code, inputs \\ [])
+  defdelegate compile(code, inputs), to: State
 
-  def run(code, inputs) when is_binary(code) do
+  # eventually extract these into the compiler
+  def run(code, inputs \\ [], input_func \\ nil, output_func \\ &State.default_output_function/2)
+
+  def run(code, inputs, input_func, output_func) when is_binary(code) do
     code
     |> Advent19.Utils.Input.csv_to_ints()
-    |> run(inputs)
+    |> run(inputs, input_func, output_func)
   end
 
-  def run(code, inputs) when is_binary(inputs) do
+  def run(code, inputs, input_func, output_func) when is_binary(inputs) do
     inputs = String.split(",", trim: true)
-    run(code, inputs)
+    run(code, inputs, input_func, output_func)
   end
 
-  def run(code, inputs) when is_integer(inputs), do: run(code, [inputs])
+  def run(code, inputs, input_func, output_func) when is_integer(inputs),
+    do: run(code, [inputs], input_func, output_func)
 
-  def run(code, inputs) do
+  def run(code, inputs, input_func, output_func) do
     code
-    |> State.compile(inputs)
+    |> State.compile(inputs, input_func, output_func)
     |> do_run
   end
 
@@ -65,7 +81,7 @@ defmodule Advent19.IntCode do
   end
 
   defp process_instruction(99, _mode, %{index: i} = state),
-    do: %{state | complete: true, index: i + 1}
+    do: %{state | complete: true, halted: true, index: i + 1}
 
   defp process_instruction(1, {m1, m2, _}, %{values: v, index: i} = state) do
     {a, b} = {extract_ref(v, i + 1, m1), extract_ref(v, i + 2, m2)}
@@ -79,14 +95,28 @@ defmodule Advent19.IntCode do
     %{state | values: Map.put(v, dest, a * b), index: i + 4}
   end
 
+  # inputs!
   defp process_instruction(3, {m1, _, _}, %{values: v, index: i, inputs: [input | rest]} = state) do
     dest = Map.get(v, i + 1, m1)
     %{state | index: i + 2, values: Map.put(v, dest, input), inputs: rest}
   end
 
-  defp process_instruction(4, {m1, _, _}, %{values: v, index: i, output: out} = state) do
+  defp process_instruction(3, {_, _, _}, %{input_func: nil} = state) do
+    IO.puts("needed input, but got none!")
+    :ok = false
+    %{state | complete: true, halted: true}
+  end
+
+  defp process_instruction(3, {m1, _, _}, %{values: v, index: i, input_func: f} = state) do
+    dest = Map.get(v, i + 1, m1)
+    %{state | index: i + 2, values: Map.put(v, dest, f.())}
+  end
+
+  defp process_instruction(4, {m1, _, _}, %{values: v, index: i, output_func: out} = state) do
     val = extract_ref(v, i + 1, m1)
-    %{state | index: i + 2, output: [val | out]}
+    # %{state | index: i + 2, output: [val | out]}
+    state = out.(state, val)
+    %{state | index: i + 2}
   end
 
   defp process_instruction(5, {m1, m2, _}, %{values: v, index: i} = state) do
