@@ -56,9 +56,6 @@ defmodule Advent19.Day07 do
     end
   end
 
-  def part2 do
-  end
-
   defp generate_phases(start, finish) do
     start..finish
     |> Enum.into([])
