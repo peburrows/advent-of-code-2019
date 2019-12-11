@@ -6,6 +6,7 @@ defmodule Advent19.Day09 do
     IntCode.run(code, [input]) |> IntCode.full_output()
   end
 
-  def part2 do
+  def part2(code, input) do
+    part1(code, input)
   end
 end
