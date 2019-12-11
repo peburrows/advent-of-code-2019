@@ -5,12 +5,14 @@ defmodule Advent19.IntCode do
               inputs: [],
               input_func: nil,
               index: 0,
+              relative_base: 0,
               complete: false,
               output: [],
               output_func: nil,
               halted: false
 
     def default_output_function(state, out) do
+      IO.puts("outputing! #{inspect(out)}")
       %{state | output: [out | state.output]}
     end
 
@@ -38,6 +40,18 @@ defmodule Advent19.IntCode do
 
   defdelegate compile(code, inputs), to: State
 
+  @ops %{
+    1 => :add,
+    2 => :multiply,
+    3 => :input,
+    4 => :output,
+    5 => :jump_if_true,
+    6 => :jump_if_false,
+    7 => :less_than,
+    8 => :equal,
+    9 => :adjust_relative_base,
+    99 => :exit
+  }
   # eventually extract these into the compiler
   def run(code, inputs \\ [], input_func \\ nil, output_func \\ &State.default_output_function/2)
 
@@ -48,7 +62,7 @@ defmodule Advent19.IntCode do
   end
 
   def run(code, inputs, input_func, output_func) when is_binary(inputs) do
-    inputs = String.split(",", trim: true)
+    inputs = String.split(inputs, ",", trim: true)
     run(code, inputs, input_func, output_func)
   end
 
@@ -72,7 +86,8 @@ defmodule Advent19.IntCode do
   end
 
   def result(%{values: v}), do: Map.values(v)
-  def output(%{output: o}), do: Enum.reverse(o) |> List.first()
+  def output(%{output: _o} = state), do: state |> full_output |> List.first()
+  def full_output(%{output: o}), do: Enum.reverse(o)
 
   # extract the mode from the instructions
   defp process_instruction(code, state) do
@@ -80,61 +95,71 @@ defmodule Advent19.IntCode do
     process_instruction(op, {m1, m2, m3}, state)
   end
 
-  defp process_instruction(99, _mode, %{index: i} = state),
+  defp process_instruction(:exit, _mode, %{index: i} = state),
     do: %{state | complete: true, halted: true, index: i + 1}
 
-  defp process_instruction(1, {m1, m2, _}, %{values: v, index: i} = state) do
-    {a, b} = {extract_ref(v, i + 1, m1), extract_ref(v, i + 2, m2)}
-    dest = Map.get(v, i + 3)
+  defp process_instruction(:add, {m1, m2, m3}, %{values: v, index: i} = state) do
+    {a, b} = {extract_ref(state, i + 1, m1), extract_ref(state, i + 2, m2)}
+    # dest = Map.get(v, i + 3)
+    dest = extract_ref(state, i + 3, dest_mode(m3))
     %{state | values: Map.put(v, dest, a + b), index: i + 4}
   end
 
-  defp process_instruction(2, {m1, m2, _}, %{values: v, index: i} = state) do
-    {a, b} = {extract_ref(v, i + 1, m1), extract_ref(v, i + 2, m2)}
-    dest = Map.get(v, i + 3)
+  defp process_instruction(:multiply, {m1, m2, m3}, %{values: v, index: i} = state) do
+    {a, b} = {extract_ref(state, i + 1, m1), extract_ref(state, i + 2, m2)}
+    # dest = Map.get(v, i + 3)
+    dest = extract_ref(state, i + 3, dest_mode(m3))
     %{state | values: Map.put(v, dest, a * b), index: i + 4}
   end
 
   # inputs!
-  defp process_instruction(3, {m1, _, _}, %{values: v, index: i, inputs: [input | rest]} = state) do
-    dest = Map.get(v, i + 1, m1)
+  defp process_instruction(
+         :input,
+         {m1, _, _},
+         %{values: v, index: i, inputs: [input | rest]} = state
+       ) do
+    IO.puts("input, I guess #{m1}")
+    # dest = Map.get(v, i + 1, dest_mode(m1))
+    dest = extract_ref(state, i + 1, dest_mode(m1))
     %{state | index: i + 2, values: Map.put(v, dest, input), inputs: rest}
   end
 
-  defp process_instruction(3, {_, _, _}, %{input_func: nil} = state) do
+  defp process_instruction(:input, {_, _, _}, %{input_func: nil} = state) do
     IO.puts("needed input, but got none!")
     :ok = false
     %{state | complete: true, halted: true}
   end
 
-  defp process_instruction(3, {m1, _, _}, %{values: v, index: i, input_func: f} = state) do
-    dest = Map.get(v, i + 1, m1)
+  defp process_instruction(:input, {m1, _, _}, %{values: v, index: i, input_func: f} = state) do
+    # dest = Map.get(v, i + 1, dest_mode(m1))
+    dest = extract_ref(state, i + 1, dest_mode(m1))
     %{state | index: i + 2, values: Map.put(v, dest, f.())}
   end
 
-  defp process_instruction(4, {m1, _, _}, %{values: v, index: i, output_func: out} = state) do
-    val = extract_ref(v, i + 1, m1)
+  defp process_instruction(:output, {m1, _, _}, %{index: i, output_func: out} = state) do
+    val = extract_ref(state, i + 1, m1)
     # %{state | index: i + 2, output: [val | out]}
+    IO.puts("this is an output function")
     state = out.(state, val)
     %{state | index: i + 2}
   end
 
-  defp process_instruction(5, {m1, m2, _}, %{values: v, index: i} = state) do
+  defp process_instruction(:jump_if_true, {m1, m2, _}, %{values: v, index: i} = state) do
     # jump-if-true
     i =
-      case extract_ref(v, i + 1, m1) do
+      case extract_ref(state, i + 1, m1) do
         0 -> i + 3
-        _ -> extract_ref(v, i + 2, m2)
+        _ -> extract_ref(state, i + 2, m2)
       end
 
     %{state | index: i}
   end
 
-  defp process_instruction(6, {m1, m2, _}, %{values: v, index: i} = state) do
+  defp process_instruction(:jump_if_false, {m1, m2, _}, %{values: v, index: i} = state) do
     # jump-if-false
     i =
-      case extract_ref(v, i + 1, m1) do
-        0 -> extract_ref(v, i + 2, m2)
+      case extract_ref(state, i + 1, m1) do
+        0 -> extract_ref(state, i + 2, m2)
         _ -> i + 3
       end
 
@@ -142,27 +167,38 @@ defmodule Advent19.IntCode do
   end
 
   # Opcode 7 is less than: if the first parameter is less than the second parameter, it stores 1 in the position given by the third parameter. Otherwise, it stores 0.
-  defp process_instruction(7, {m1, m2, _m3}, %{values: v, index: i} = state) do
-    a = extract_ref(v, i + 1, m1)
-    b = extract_ref(v, i + 2, m2)
-    dest = extract_ref(v, i + 3, 1)
+  defp process_instruction(:less_than, {m1, m2, m3}, %{values: v, index: i} = state) do
+    a = extract_ref(state, i + 1, m1)
+    b = extract_ref(state, i + 2, m2)
+    # I maybe this should fallback to 1 if mode is ... 0?
+    dest = extract_ref(state, i + 3, dest_mode(m3))
     val = if a < b, do: 1, else: 0
 
     %{state | values: Map.put(v, dest, val), index: i + 4}
   end
 
   # Opcode 8 is equals: if the first parameter is equal to the second parameter, it stores 1 in the position given by the third parameter. Otherwise, it stores 0.
-  defp process_instruction(8, {m1, m2, _m3}, %{values: v, index: i} = state) do
-    a = extract_ref(v, i + 1, m1)
-    b = extract_ref(v, i + 2, m2)
-    dest = extract_ref(v, i + 3, 1)
+  defp process_instruction(:equal, {m1, m2, m3}, %{values: v, index: i} = state) do
+    a = extract_ref(state, i + 1, m1)
+    b = extract_ref(state, i + 2, m2)
+    dest = extract_ref(state, i + 3, dest_mode(m3))
     val = if a == b, do: 1, else: 0
 
     %{state | values: Map.put(v, dest, val), index: i + 4}
   end
 
-  defp process_instruction(_other, _mode, %{index: i} = state),
-    do: %{state | complete: true, index: i + 1}
+  defp process_instruction(
+         :adjust_relative_base,
+         {m1, _, _},
+         %{relative_base: base, index: i} = state
+       ) do
+    a = extract_ref(state, i + 1, m1)
+    %{state | index: i + 2, relative_base: max(base + a, 0)}
+  end
+
+  defp process_instruction({:not_found, _op}, _mode, %{index: i} = state) do
+    %{state | complete: true, index: i + 1}
+  end
 
   defp extract_modes(code) do
     digits =
@@ -175,18 +211,52 @@ defmodule Advent19.IntCode do
       |> String.to_integer()
 
     {
-      op,
+      Map.get(@ops, op, {:not_found, op}),
       Enum.at(digits, 2, 0),
       Enum.at(digits, 3, 0),
       Enum.at(digits, 4, 0)
     }
+    |> IO.inspect(label: :instruction)
   end
 
-  defp extract_ref(values, i, 0) do
+  # position mode
+  defp extract_ref(%{values: values}, i, 0) do
     ai = Map.get(values, i)
-    Map.get(values, ai)
+    Map.get(values, ai, 0)
   end
 
-  defp extract_ref(values, i, 1),
-    do: Map.get(values, i)
+  # immediate mode
+  defp extract_ref(%{values: values}, i, 1) do
+    # IO.puts("immediate: #{i}")
+    Map.get(values, i, 0)
+  end
+
+  # relative mode
+  defp extract_ref(%{values: values, relative_base: base}, i, 2) do
+    IO.puts("pulling from a relative base, I guess? #{i} :: #{base}")
+
+    # should this ever default to zero...?
+    iv = Map.get(values, i) |> IO.inspect(label: :iv)
+    Map.get(values, iv + base) |> IO.inspect(label: :mode_2)
+  end
+
+  # defp get_out(arg, pc, prog, modes, %State{relative_base: base}) do
+  #   case Enum.at(modes, arg - 1, :position) do
+  #     :immediate -> Map.get(prog, pc + arg, 0)
+  #     :position -> Map.get(prog, pc + arg, 0)
+  #     :relative -> Map.get(prog, pc + arg, 0) + base
+  #   end
+  # end
+  # defp extract_dest(%{values: v, relative_base: base}=state, i,  mode) do
+  #   case mode do
+  #     2 -> Map.get(values, i, 0) + base
+  #     _ -> Map.get(values, i, )
+  #   end
+  # end
+
+  # I don't understand this stupidity
+  # I need to go back and read the freaking day5 specs. this is SO stupid
+  defp dest_mode(0), do: 1
+  defp dest_mode(1), do: 0
+  defp dest_mode(2), do: 2
 end

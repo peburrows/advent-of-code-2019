@@ -1,6 +1,6 @@
 defmodule Advent19.Day08 do
   def part1(input) do
-    {layer, digits, _count} =
+    {_layer, digits, _count} =
       input
       |> setup_input
       |> fewest_zeros
@@ -9,14 +9,13 @@ defmodule Advent19.Day08 do
   end
 
   def part2(input) do
-    all =
-      input
-      |> setup_input
-      |> render({0, 0, %{}})
-      |> to_screen({0, 0})
+    input
+    |> setup_input
+    |> render({0, 0, %{}})
+    |> to_screen({0, 0})
   end
 
-  defp to_screen(_output, {x, y}) when x > 5, do: nil
+  defp to_screen(_output, {x, _y}) when x > 5, do: nil
 
   defp to_screen(output, {x, y}) do
     case Map.get(output, {x, y}) do
