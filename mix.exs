@@ -22,7 +22,8 @@ defmodule Advent19.MixProject do
   defp deps do
     [
       {:httpoison, "~> 1.6"},
-      {:mix_test_watch, "~> 1.0", runtime: false}
+      {:mix_test_watch, "~> 1.0", runtime: false},
+      {:math, "~> 0.3.0"}
     ]
   end
 end
